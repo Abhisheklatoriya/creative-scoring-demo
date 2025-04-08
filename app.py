@@ -38,10 +38,10 @@ def radar_plot(scores, labels, title):
     values = scores + [scores[0]]
     labels = labels + [labels[0]]
     angles = np.linspace(0, 2 * np.pi, len(values), endpoint=False).tolist()
-    values = np.array(values)
+    
     fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={'polar': True})
-    ax.plot(angles + [angles[0]], values, 'b-', linewidth=2)
-    ax.fill(angles + [angles[0]], values, 'skyblue', alpha=0.5)
+    ax.plot(angles, values, 'b-', linewidth=2)  # ✅ FIXED
+    ax.fill(angles, values, 'skyblue', alpha=0.5)
     ax.set_thetagrids(np.degrees(angles), labels)
     ax.set_title(title, size=12)
     ax.grid(True)
