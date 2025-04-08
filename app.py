@@ -49,10 +49,14 @@ def radar_plot(scores, labels, title):
 
 # --- Saliency Map ---
 def show_saliency_map(image, title):
-    saliency = cv2.saliency.StaticSaliencyFineGrained_create()
-    success, sal_map = saliency.computeSaliency(image)
-    sal_map = (sal_map * 255).astype("uint8")
-    st.image([image[..., ::-1], sal_map], caption=["Creative", "Saliency Map"], width=300)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=5)
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=5)
+    saliency_map = cv2.magnitude(sobelx, sobely)
+    saliency_map = np.uint8(255 * saliency_map / np.max(saliency_map))
+
+    st.image([image[..., ::-1], saliency_map], caption=[title, "Approx. Saliency Map"], width=300)
+
 
 # --- Color Distribution ---
 def color_distribution(image):
