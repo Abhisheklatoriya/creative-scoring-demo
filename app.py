@@ -38,17 +38,20 @@ def compute_visual_metrics(img):
     clarity_score = (0.4 * (1 - min(edge_density * 5, 1)) + 0.3 * min(sharpness / 1000, 1) + 0.3 * (1 - min(contour_approx / 20, 1)))
     return round(clarity_score, 2), round(edge_density, 4), round(sharpness, 2), round(contour_approx, 4)
 
-def plot_radar(labels, values, title):
-    labels += [labels[0]]
-    values += [values[0]]
-    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    angles += angles[:1]
-    fig, ax = plt.subplots(subplot_kw={'polar': True}, figsize=(4, 4))
+def plot_radar(labels, values, title="Radar Chart"):
+    values += values[:1]  # repeat first value at end
+    angles = np.linspace(0, 2 * np.pi, len(values), endpoint=False).tolist()
+    angles += angles[:1]  # repeat first angle at end
+
+    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
     ax.plot(angles, values, 'r-', linewidth=2)
-    ax.fill(angles, values, 'salmon', alpha=0.5)
-    ax.set_thetagrids(np.degrees(angles), labels)
-    ax.set_title(title)
+    ax.fill(angles, values, 'skyblue', alpha=0.3)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels([])
+    ax.set_title(title, size=12)
     st.pyplot(fig)
+
 
 def plot_color_bar(rgb_values, title):
     colors = ["Red", "Green", "Blue"]
