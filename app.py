@@ -39,23 +39,22 @@ def compute_visual_metrics(img):
     return round(clarity_score, 2), round(edge_density, 4), round(sharpness, 2), round(contour_approx, 4)
 
 def plot_radar(labels, values, title="Radar Chart"):
-    # Repeat first value to close the radar chart loop
+    # Repeat the first value and label to close the loop
+    labels = labels + [labels[0]]
     values = values + [values[0]]
     
-    # Compute angles for each axis
-    angles = np.linspace(0, 2 * np.pi, len(values), endpoint=False).tolist()
-    angles += angles[:1]  # close the loop
+    # Calculate angles
+    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
 
-    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+    # Plot
+    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
     ax.plot(angles, values, 'r-', linewidth=2)
     ax.fill(angles, values, 'skyblue', alpha=0.3)
-    
-    # Set axis labels (exclude the repeated one)
-    ax.set_xticks(angles[:-1])
+
+    ax.set_xticks(angles)
     ax.set_xticklabels(labels)
     ax.set_yticklabels([])
     ax.set_title(title, size=12)
-
     st.pyplot(fig)
 
 
