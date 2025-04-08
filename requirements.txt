@@ -1,7 +1,7 @@
 streamlit
-opencv-python-headless
-matplotlib
-numpy
+plotly
 pandas
+opencv-python
+numpy
+matplotlib
 Pillow
-
