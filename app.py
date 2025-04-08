@@ -2,108 +2,105 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import plotly.express as px
-import cv2
-import numpy as np
-import os
 from PIL import Image
-import tempfile
+import numpy as np
+import io
+import base64
 
-st.set_page_config(page_title="Creative Scoring Demo", layout="wide")
-st.title("🎨 Creative Scoring Web App")
+st.set_page_config(page_title="Creative Scoring System", layout="wide")
+st.title("🎯 Creative Scoring System")
 
-# --- Upload Section ---
-uploaded_images = st.file_uploader("Upload creative images", type=["png", "jpg"], accept_multiple_files=True)
-uploaded_csv = st.file_uploader("Upload performance CSV", type=["csv"])
+# --- Sidebar Options ---
+st.sidebar.header("Choose Insights to View")
+show_profile = st.sidebar.checkbox("Visual Profile", value=True)
+show_color = st.sidebar.checkbox("Color Distribution")
+show_saliency = st.sidebar.checkbox("Simulated Saliency Map")
+show_summary = st.sidebar.checkbox("Summary View", value=True)
 
-# --- Compute visual properties ---
-def compute_scores(image_bytes):
-    file_bytes = np.asarray(bytearray(image_bytes.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    image = cv2.resize(image, (400, 400))
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 100, 200)
-    edge_density = np.sum(edges > 0) / edges.size
-    lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contour_count = len(contours)
-    edge_score = 1 - min(edge_density * 5, 1)
-    sharp_score = min(lap_var / 1000, 1)
-    object_score = 1 - min(contour_count / 200, 1)
-    clarity_score = (0.4 * edge_score + 0.3 * sharp_score + 0.3 * object_score)
-    return image, clarity_score, edge_density, lap_var, contour_count
+# --- File Upload ---
+uploaded_images = st.file_uploader("Upload Creative Images", type=["png", "jpg"], accept_multiple_files=True)
 
-# --- Radar chart ---
-def radar_plot(scores, labels, title):
-    values = scores + [scores[0]]
-    labels = labels + [labels[0]]
-    angles = np.linspace(0, 2 * np.pi, len(values), endpoint=False).tolist()
-    
-    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={'polar': True})
-    ax.plot(angles, values, 'b-', linewidth=2)  # ✅ FIXED
-    ax.fill(angles, values, 'skyblue', alpha=0.5)
+# --- Helper Functions ---
+def get_color_distribution(image):
+    img = image.resize((100, 100))
+    pixels = np.array(img).reshape(-1, 3)
+    df = pd.DataFrame(pixels, columns=["R", "G", "B"])
+    df = df.astype(int)
+    return df.mean()
+
+def compute_visual_metrics(img):
+    gray = img.convert("L")
+    arr = np.array(gray)
+    edges = np.abs(np.diff(arr, axis=0)).sum() + np.abs(np.diff(arr, axis=1)).sum()
+    edge_density = edges / arr.size
+    sharpness = arr.var()
+    contour_approx = np.mean(np.abs(np.gradient(arr)))
+    clarity_score = (0.4 * (1 - min(edge_density * 5, 1)) + 0.3 * min(sharpness / 1000, 1) + 0.3 * (1 - min(contour_approx / 20, 1)))
+    return round(clarity_score, 2), round(edge_density, 4), round(sharpness, 2), round(contour_approx, 4)
+
+def plot_radar(labels, values, title):
+    labels += [labels[0]]
+    values += [values[0]]
+    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
+    angles += angles[:1]
+    fig, ax = plt.subplots(subplot_kw={'polar': True}, figsize=(4, 4))
+    ax.plot(angles, values, 'r-', linewidth=2)
+    ax.fill(angles, values, 'salmon', alpha=0.5)
     ax.set_thetagrids(np.degrees(angles), labels)
-    ax.set_title(title, size=12)
-    ax.grid(True)
+    ax.set_title(title)
     st.pyplot(fig)
 
-# --- Saliency Map ---
-def show_saliency_map(image, title):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=5)
-    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=5)
-    saliency_map = cv2.magnitude(sobelx, sobely)
-    saliency_map = np.uint8(255 * saliency_map / np.max(saliency_map))
+def plot_color_bar(rgb_values, title):
+    colors = ["Red", "Green", "Blue"]
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.bar(colors, rgb_values, color=["red", "green", "blue"])
+    ax.set_ylim(0, 255)
+    ax.set_ylabel("Intensity")
+    ax.set_title(title)
+    st.pyplot(fig)
 
-    st.image([image[..., ::-1], saliency_map], caption=[title, "Approx. Saliency Map"], width=300)
+def show_saliency_simulation(img):
+    gray = img.convert("L")
+    sal = np.array(gray).astype(np.uint8)
+    sal = np.clip(255 - sal, 0, 255)
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    ax[0].imshow(img)
+    ax[0].set_title("Creative")
+    ax[0].axis("off")
+    ax[1].imshow(sal, cmap='hot')
+    ax[1].set_title("Simulated Saliency")
+    ax[1].axis("off")
+    st.pyplot(fig)
 
-
-# --- Color Distribution ---
-def color_distribution(image):
-    img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    pixels = img_rgb.reshape(-1, 3)
-    df_colors = pd.DataFrame(pixels, columns=['R', 'G', 'B'])
-    df_colors['hex'] = df_colors.apply(lambda row: '#%02x%02x%02x' % (row.R, row.G, row.B), axis=1)
-    top_colors = df_colors['hex'].value_counts().head(5).reset_index()
-    top_colors.columns = ['Color', 'Count']
-    fig = px.bar(top_colors, x='Color', y='Count', color='Color', title="Top 5 Colors in Creative")
-    fig.update_layout(showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
-
-# --- Analysis Section ---
+# --- Process Uploaded Images ---
 if uploaded_images:
-    st.subheader("🧠 Creative Analysis")
     for image_file in uploaded_images:
         st.markdown(f"### 🖼️ {image_file.name}")
-        image, score, edge, sharp, contours = compute_scores(image_file)
+        image = Image.open(image_file).convert("RGB")
+        col1, col2 = st.columns([1, 2])
 
-        with st.expander("🔍 Summary"):
-            st.write(f"• **Clarity Score**: {score:.2f}")
-            st.write(f"• **Edge Density**: {edge:.3f}")
-            st.write(f"• **Sharpness (Laplacian Var)**: {sharp:.2f}")
-            st.write(f"• **Contour Count**: {contours}")
+        with col1:
+            st.image(image, caption="Uploaded Creative", use_column_width=True)
 
-        cols = st.columns(3)
+        with col2:
+            if show_summary:
+                score, edge, sharp, contours = compute_visual_metrics(image)
+                st.metric("🔍 Clarity Score", f"{score}")
+                st.metric("📐 Edge Density", f"{edge}")
+                st.metric("📈 Sharpness", f"{sharp}")
+                st.metric("🔲 Contour Estimate", f"{contours}")
 
-        with cols[0]:
-            st.image(image[..., ::-1], caption="Original Creative", use_column_width=True)
+            if show_profile:
+                metrics = compute_visual_metrics(image)
+                plot_radar(["Clarity", "Edge", "Sharpness", "Contour"], list(metrics), "Visual Profile")
 
-        with cols[1]:
-            st.markdown("**Radar Profile**")
-            metrics = [score, edge, sharp / 1000, min(contours / 200, 1)]
-            radar_plot(metrics, ["Clarity", "Edge", "Sharp", "Contours"], "Visual Profile")
+            if show_color:
+                rgb_avg = get_color_distribution(image)
+                plot_color_bar(rgb_avg.tolist(), "Average Color Composition")
 
-        with cols[2]:
-            st.markdown("**Saliency Map**")
-            show_saliency_map(image, image_file.name)
+            if show_saliency:
+                show_saliency_simulation(image)
 
-        st.markdown("**🎨 Color Breakdown**")
-        color_distribution(image)
-        st.markdown("---")
-
-# --- Performance CSV ---
-if uploaded_csv:
-    st.subheader("📊 Performance Data")
-    df_perf = pd.read_csv(uploaded_csv)
-    st.dataframe(df_perf)
-    st.bar_chart(df_perf.select_dtypes(include=np.number))
+    st.success("✅ Analysis complete.")
+else:
+    st.info("⬆️ Please upload creative images to get started.")
