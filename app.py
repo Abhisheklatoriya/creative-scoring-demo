@@ -38,26 +38,17 @@ def compute_visual_metrics(img):
     clarity_score = (0.4 * (1 - min(edge_density * 5, 1)) + 0.3 * min(sharpness / 1000, 1) + 0.3 * (1 - min(contour_approx / 20, 1)))
     return round(clarity_score, 2), round(edge_density, 4), round(sharpness, 2), round(contour_approx, 4)
 
-def plot_radar(labels, values, title="Radar Chart"):
-    # Repeat the first value and label to close the loop
+def plot_radar(labels, values, title):
     labels = labels + [labels[0]]
     values = values + [values[0]]
-    
-    # Calculate angles
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
+    angles += angles[:1]
+    fig, ax = plt.subplots(subplot_kw={'polar': True}, figsize=(4, 4))
     ax.plot(angles, values, 'r-', linewidth=2)
-    ax.fill(angles, values, 'skyblue', alpha=0.3)
-
-    ax.set_xticks(angles)
-    ax.set_xticklabels(labels)
-    ax.set_yticklabels([])
-    ax.set_title(title, size=12)
+    ax.fill(angles, values, 'salmon', alpha=0.5)
+    ax.set_thetagrids(np.degrees(angles), labels)
+    ax.set_title(title)
     st.pyplot(fig)
-
-
 
 def plot_color_bar(rgb_values, title):
     colors = ["Red", "Green", "Blue"]
@@ -81,6 +72,31 @@ def show_saliency_simulation(img):
     ax[1].axis("off")
     st.pyplot(fig)
 
+def get_strengths_weaknesses(score, edge, sharp, contours):
+    strengths = []
+    weaknesses = []
+    if score > 0.75:
+        strengths.append("High overall clarity")
+    elif score < 0.5:
+        weaknesses.append("Low clarity may reduce message clarity")
+
+    if sharp > 200:
+        strengths.append("Sharp image likely good for mobile")
+    else:
+        weaknesses.append("Image may appear soft on small screens")
+
+    if edge < 0.1:
+        strengths.append("Low visual noise")
+    else:
+        weaknesses.append("Potential visual clutter")
+
+    if contours > 15:
+        weaknesses.append("Many objects detected — layout may be crowded")
+    else:
+        strengths.append("Simple composition")
+
+    return strengths, weaknesses
+
 # --- Process Uploaded Images ---
 if uploaded_images:
     for image_file in uploaded_images:
@@ -94,10 +110,29 @@ if uploaded_images:
         with col2:
             if show_summary:
                 score, edge, sharp, contours = compute_visual_metrics(image)
-                st.metric("🔍 Clarity Score", f"{score}")
+
+                # Color Heat Meter
+                color = "green" if score > 0.75 else "orange" if score > 0.5 else "red"
+                st.markdown(f"<div style='padding:10px; background:{color}; color:white; font-size:18px;'>\n                Visual Score: <strong>{score:.2f}</strong>\n                </div>", unsafe_allow_html=True)
+
                 st.metric("📐 Edge Density", f"{edge}")
                 st.metric("📈 Sharpness", f"{sharp}")
                 st.metric("🔲 Contour Estimate", f"{contours}")
+
+                # Media Context Translations
+                st.markdown("#### 📋 Media Interpretation")
+                st.markdown("- High clarity suggests better readability at a glance.")
+                st.markdown("- Lower edge density indicates visual simplicity.")
+                st.markdown("- Higher sharpness benefits display on mobile.")
+
+                # Strengths & Weaknesses
+                strengths, weaknesses = get_strengths_weaknesses(score, edge, sharp, contours)
+                st.markdown("#### ✅ Top Strengths")
+                for s in strengths:
+                    st.markdown(f"- {s}")
+                st.markdown("#### ⚠️ Areas to Improve")
+                for w in weaknesses:
+                    st.markdown(f"- {w}")
 
             if show_profile:
                 metrics = compute_visual_metrics(image)
